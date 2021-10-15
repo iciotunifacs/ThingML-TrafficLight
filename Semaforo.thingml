@@ -1,0 +1,99 @@
+import "LED.thingml"
+import "Button.thingml"
+import "_Datatypes.thingml"
+
+thing Semaforo includes TimerMsgs, LEDMsgs, ButtonMsgs { 
+
+	required port timer 
+	@sync_send "true"
+	{
+		receives timer_timeout
+		sends timer_start, timer_cancel
+	}
+	
+	required port ledRed {
+		sends led_ON, led_OFF
+	}
+	required port ledYellow {
+		sends led_ON, led_OFF
+	}
+	required port ledGreen {
+		sends led_ON, led_OFF
+	}
+	required port btn {
+		receives press, release
+	}
+	
+
+	statechart TrafficLights init RED {
+	
+		state RED {
+			on entry do 
+				ledRed!led_ON()
+				timer!timer_start(0, 1200)
+			end
+			on exit do
+				ledRed!led_OFF()
+			end
+
+			transition default -> GREEN event e : timer?timer_timeout 
+			transition exception -> STOPPED event e : btn?press
+		}	
+		
+		state GREEN {
+			on entry do 
+				ledGreen!led_ON()
+				timer!timer_start(0, 1200)
+			end
+			on exit do
+				ledGreen!led_OFF()
+			end
+			transition default -> YELLOW event e : timer?timer_timeout
+			transition exception -> STOPPED event e : btn?press
+		}
+		
+		state YELLOW {
+			on entry do 
+				ledYellow!led_ON()
+				timer!timer_start(0, 1200)
+			end
+			on exit do
+				ledYellow!led_OFF()
+			end
+			transition default -> RED event e : timer?timer_timeout
+			transition exception -> STOPPED event e : btn?press
+		}	
+		
+		state STOPPED {
+			on entry do 
+				timer!timer_cancel(0)
+			end
+			on exit do
+				timer!timer_start(0, 1200)
+			end
+			transition -> RED event e : btn?release
+		}
+	}
+}
+
+protocol Timer;
+
+configuration Semaforo
+{
+	instance semaforo : Semaforo
+	instance btn : Button
+		set btn.PIN = 7
+	instance ledRed : LED 
+		set ledRed.PIN = 8
+	instance ledYellow : LED 
+		set ledYellow.PIN = 9
+	instance ledGreen : LED 
+		set ledGreen.PIN = 10
+	
+	connector semaforo.ledRed => ledRed.ctrl
+	connector semaforo.ledYellow => ledYellow.ctrl
+	connector semaforo.ledGreen => ledGreen.ctrl
+	connector semaforo.btn => btn.evt
+	connector btn.clock over Timer
+	connector semaforo.timer over Timer
+}
